@@ -10,7 +10,7 @@
  * to mainly kill the offending process (probably by giving it a signal,
  * but possibly by killing it outright if necessary).
  */
-#include <string.h> 
+#include <string.h>
 
 #include <linux/head.h>
 #include <linux/sched.h>
@@ -60,6 +60,7 @@ void reserved(void);
 void parallel_interrupt(void);
 void irq13(void);
 
+// Logging interrupt info.
 static void die(char * str,long esp_ptr,long nr)
 {
 	long * esp = (long *) esp_ptr;

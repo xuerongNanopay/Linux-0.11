@@ -101,6 +101,7 @@ void math_state_restore()
  * tasks can run. It can not be killed, and it cannot sleep. The 'state'
  * information in task[0] is never used.
  */
+// how linux change process.
 void schedule(void)
 {
 	int i,next,c;
@@ -302,6 +303,8 @@ void add_timer(long jiffies, void (*fn)(void))
 	sti();
 }
 
+// Call by timer_interrupt function.
+// do_timer is the interrupted handle function.
 void do_timer(long cpl)
 {
 	extern int beepcount;
@@ -311,16 +314,18 @@ void do_timer(long cpl)
 		if (!--beepcount)
 			sysbeepstop();
 
+	// cpl usd to check if current interrupted process in kernel or user mode.
+	//cpl == 0 => kernel process, cpl == 1 => user porcess
 	if (cpl)
-		current->utime++;
+		current->utime++; // user process time
 	else
-		current->stime++;
+		current->stime++; // kernerl process time
 
-	if (next_timer) {
+	if (next_timer) {   // a list of timer.
 		next_timer->jiffies--;
 		while (next_timer && next_timer->jiffies <= 0) {
 			void (*fn)(void);
-			
+
 			fn = next_timer->fn;
 			next_timer->fn = NULL;
 			next_timer = next_timer->next;

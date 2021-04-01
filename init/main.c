@@ -74,7 +74,7 @@ inb_p(0x71); \
 })
 
 #define BCD_TO_BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
-
+//Get time from hardwire, and calculate time from 1970/1/1.
 static void time_init(void)
 {
 	struct tm time;

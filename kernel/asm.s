@@ -16,10 +16,11 @@
 .globl invalid_TSS,segment_not_present,stack_segment
 .globl general_protection,coprocessor_error,irq13,reserved
 
+# register size: 4 bytes or 32 bits
 divide_error:
 	pushl $do_divide_error
 no_error_code:
-	xchgl %eax,(%esp)
+	xchgl %eax,(%esp) # at this point: %esp has pointer to interrupt handler function.
 	pushl %ebx
 	pushl %ecx
 	pushl %edx
