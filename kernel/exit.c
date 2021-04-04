@@ -16,6 +16,7 @@
 int sys_pause(void);
 int sys_close(int fd);
 
+//release task_struct from task array.
 void release(struct task_struct * p)
 {
 	int i;
@@ -32,6 +33,7 @@ void release(struct task_struct * p)
 	panic("trying to release non-existent task");
 }
 
+//send sig to process p.
 static inline int send_sig(long sig,struct task_struct * p,int priv)
 {
 	if (!p || sig<1 || sig>32)
@@ -46,7 +48,8 @@ static inline int send_sig(long sig,struct task_struct * p,int priv)
 static void kill_session(void)
 {
 	struct task_struct **p = NR_TASKS + task;
-	
+
+	//exculde task0.
 	while (--p > &FIRST_TASK) {
 		if (*p && (*p)->session == current->session)
 			(*p)->signal |= 1<<(SIGHUP-1);
@@ -57,17 +60,22 @@ static void kill_session(void)
  * XXX need to check permissions needed to send signals to process
  * groups, etc. etc.  kill() permissions semantics are tricky!
  */
+// send signal to process.
+// pid > 0: send to pid process
+// pid == 0: send to current process group
+// pid == -1: send to any prcocess.
+// pid < -1: send to -pid process group.
 int sys_kill(int pid,int sig)
 {
 	struct task_struct **p = NR_TASKS + task;
 	int err, retval = 0;
 
 	if (!pid) while (--p > &FIRST_TASK) {
-		if (*p && (*p)->pgrp == current->pid) 
+		if (*p && (*p)->pgrp == current->pid)
 			if ((err=send_sig(sig,*p,1)))
 				retval = err;
 	} else if (pid>0) while (--p > &FIRST_TASK) {
-		if (*p && (*p)->pid == pid) 
+		if (*p && (*p)->pid == pid)
 			if ((err=send_sig(sig,*p,0)))
 				retval = err;
 	} else if (pid == -1) while (--p > &FIRST_TASK) {
@@ -102,8 +110,10 @@ static void tell_father(int pid)
 int do_exit(long code)
 {
 	int i;
+	//release ldt and tss.
 	free_page_tables(get_base(current->ldt[1]),get_limit(0x0f));
 	free_page_tables(get_base(current->ldt[2]),get_limit(0x17));
+	//change children process to init process.
 	for (i=0 ; i<NR_TASKS ; i++)
 		if (task[i] && task[i]->father == current->pid) {
 			task[i]->father = 1;
@@ -111,6 +121,7 @@ int do_exit(long code)
 				/* assumption task[1] is always init */
 				(void) send_sig(SIGCHLD, task[1], 1);
 		}
+	//close file open by the process.
 	for (i=0 ; i<NR_OPEN ; i++)
 		if (current->filp[i])
 			sys_close(i);
@@ -120,15 +131,23 @@ int do_exit(long code)
 	current->root=NULL;
 	iput(current->executable);
 	current->executable=NULL;
+
+	//release terminal
 	if (current->leader && current->tty >= 0)
 		tty_table[current->tty].pgrp = 0;
 	if (last_task_used_math == current)
 		last_task_used_math = NULL;
+	//What is leader?
 	if (current->leader)
 		kill_session();
 	current->state = TASK_ZOMBIE;
 	current->exit_code = code;
 	tell_father(current->father);
+	//we don't remove task_struct from task array at this point.
+	//Let parent process do it. This is important.
+	//cause parent process may wait/waitpid for child.
+	//If you kill child at this point. parent process may lose some info.
+	// eg: parent process should accumulate time from child.
 	schedule();
 	return (-1);	/* just to suppress warnings */
 }
@@ -138,6 +157,8 @@ int sys_exit(int error_code)
 	return do_exit((error_code&0xff)<<8);
 }
 
+// parent process create a child process.
+// then waiting for child process to finish.
 int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options)
 {
 	int flag, code;
@@ -184,6 +205,7 @@ repeat:
 		if (options & WNOHANG)
 			return 0;
 		current->state=TASK_INTERRUPTIBLE;
+		//trap inside untill children process finish.
 		schedule();
 		if (!(current->signal &= ~(1<<(SIGCHLD-1))))
 			goto repeat;

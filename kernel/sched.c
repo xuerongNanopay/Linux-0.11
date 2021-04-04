@@ -102,6 +102,7 @@ void math_state_restore()
  * information in task[0] is never used.
  */
 // how linux change process.
+//TODO: also check version: 2.6(hash schedule) 3.4
 void schedule(void)
 {
 	int i,next,c;
