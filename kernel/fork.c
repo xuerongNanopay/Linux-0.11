@@ -67,6 +67,7 @@ int copy_mem(int nr,struct task_struct * p)
  * information (task[nr]) and sets up the necessary registers. It
  * also copies the data segment in it's entirety.
  */
+// create process.
 int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 		long ebx,long ecx,long edx,
 		long fs,long es,long ds,
@@ -76,11 +77,12 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	int i;
 	struct file *f;
 
+	//create memory for new process.
 	p = (struct task_struct *) get_free_page();
 	if (!p)
 		return -EAGAIN;
 	task[nr] = p;
-	
+
 	// NOTE!: the following statement now work with gcc 4.3.2 now, and you
 	// must compile _THIS_ memcpy without no -O of gcc.#ifndef GCC4_3
 	*p = *current;	/* NOTE! this doesn't copy the supervisor stack */
@@ -117,22 +119,28 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.trace_bitmap = 0x80000000;
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0"::"m" (p->tss.i387));
+	//copy LDT
 	if (copy_mem(nr,p)) {
 		task[nr] = NULL;
 		free_page((long) p);
 		return -EAGAIN;
 	}
+
+	//child process will inherit parent process's open file.
 	for (i=0; i<NR_OPEN;i++)
 		if ((f=p->filp[i]))
 			f->f_count++;
+	//inherit parent's working directory.
 	if (current->pwd)
 		current->pwd->i_count++;
 	if (current->root)
 		current->root->i_count++;
 	if (current->executable)
 		current->executable->i_count++;
+
 	set_tss_desc(gdt+(nr<<1)+FIRST_TSS_ENTRY,&(p->tss));
 	set_ldt_desc(gdt+(nr<<1)+FIRST_LDT_ENTRY,&(p->ldt));
+
 	p->state = TASK_RUNNING;	/* do this last, just in case */
 	return last_pid;
 }
@@ -141,10 +149,12 @@ int find_empty_process(void)
 {
 	int i;
 
+	//pick last_pid
 	repeat:
 		if ((++last_pid)<0) last_pid=1;
 		for(i=0 ; i<NR_TASKS ; i++)
 			if (task[i] && task[i]->pid == last_pid) goto repeat;
+	//find empty slot in process array.
 	for(i=1 ; i<NR_TASKS ; i++)
 		if (!task[i])
 			return i;

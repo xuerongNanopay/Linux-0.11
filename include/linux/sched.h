@@ -1,6 +1,7 @@
 #ifndef _SCHED_H
 #define _SCHED_H
 
+//number of process.
 #define NR_TASKS 64
 #define HZ 100
 
@@ -16,10 +17,11 @@
 #error "Currently the close-on-exec-flags are in one word, max 32 files/proc"
 #endif
 
+//process state.
 #define TASK_RUNNING		0
 #define TASK_INTERRUPTIBLE	1
 #define TASK_UNINTERRUPTIBLE	2
-#define TASK_ZOMBIE		3
+#define TASK_ZOMBIE		3 //receivce SIGSTOP, SIGSTP, SIGTTIN
 #define TASK_STOPPED		4
 
 #ifndef NULL
@@ -50,6 +52,7 @@ struct i387_struct {
 	long	st_space[20];	/* 8*10 bytes for each FP-reg = 80 bytes */
 };
 
+//store registers.
 struct tss_struct {
 	long	back_link;	/* 16 high bits zero */
 	long	esp0;
@@ -77,6 +80,7 @@ struct tss_struct {
 	struct i387_struct i387;
 };
 
+// Process struct.
 struct task_struct {
 /* these are hardcoded - don't touch */
 	long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
@@ -103,8 +107,10 @@ struct task_struct {
 	unsigned long close_on_exec;
 	struct file * filp[NR_OPEN];
 /* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
+	//data and code.
 	struct desc_struct ldt[3];
 /* tss for this task */
+	//process task attributes. -- current register value.
 	struct tss_struct tss;
 };
 
@@ -138,9 +144,11 @@ struct task_struct {
 extern struct task_struct *task[NR_TASKS];
 extern struct task_struct *last_task_used_math;
 extern struct task_struct *current;
+//Key attribute for time.
 extern long volatile jiffies;
 extern long startup_time;
 
+//How to calculate current time.
 #define CURRENT_TIME (startup_time+jiffies/HZ)
 
 extern void add_timer(long jiffies, void (*fn)(void));
@@ -172,10 +180,10 @@ __asm__("str %%ax\n\t" \
  */
 #define switch_to(n) {\
 struct {long a,b;} __tmp; \
-__asm__("cmpl %%ecx,current\n\t" \
-	"je 1f\n\t" \
+__asm__("cmpl %%ecx,current\n\t" \ // check if next process is equal to current one.
+	"je 1f\n\t" \              // if yes, then we don't need switch
 	"movw %%dx,%1\n\t" \
-	"xchgl %%ecx,current\n\t" \
+	"xchgl %%ecx,current\n\t" \ // update current at here
 	"ljmp *%0\n\t" \
 	"cmpl %%ecx,last_task_used_math\n\t" \
 	"jne 1f\n\t" \

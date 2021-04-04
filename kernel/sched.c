@@ -109,12 +109,14 @@ void schedule(void)
 
 /* check alarm, wake up any interruptible tasks that have got a signal */
 
+	//This is how you wake up a thread.
 	for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 		if (*p) {
 			if ((*p)->alarm && (*p)->alarm < jiffies) {
 					(*p)->signal |= (1<<(SIGALRM-1));
 					(*p)->alarm = 0;
 				}
+			// wake up process if there is signal.
 			if (((*p)->signal & ~(_BLOCKABLE & (*p)->blocked)) &&
 			(*p)->state==TASK_INTERRUPTIBLE)
 				(*p)->state=TASK_RUNNING;
@@ -127,18 +129,24 @@ void schedule(void)
 		next = 0;
 		i = NR_TASKS;
 		p = &task[NR_TASKS];
+		//pick one that has biggest counter.
 		while (--i) {
 			if (!*--p)
 				continue;
 			if ((*p)->state == TASK_RUNNING && (*p)->counter > c)
 				c = (*p)->counter, next = i;
 		}
+		//if has prcess can do, then break loop
 		if (c) break;
+		//else reassign new time for all tasks.
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 			if (*p)
 				(*p)->counter = ((*p)->counter >> 1) +
 						(*p)->priority;
 	}
+	//above code pick up a process to swith
+	//below code do the actual switch.
+	//update global counter at this directive.
 	switch_to(next);
 }
 
@@ -149,12 +157,17 @@ int sys_pause(void)
 	return 0;
 }
 
+//Interesting...
+//put current into queue. p is the head of waiting queue.
+//which mean the head will get wake up first.
+//is it good?
 void sleep_on(struct task_struct **p)
 {
 	struct task_struct *tmp;
 
 	if (!p)
 		return;
+	//can not sleep task0
 	if (current == &(init_task.task))
 		panic("task[0] trying to sleep");
 	tmp = *p;
@@ -305,6 +318,7 @@ void add_timer(long jiffies, void (*fn)(void))
 
 // Call by timer_interrupt function.
 // do_timer is the interrupted handle function.
+// Do two things: check and run time_list, and then check if need schedule process.
 void do_timer(long cpl)
 {
 	extern int beepcount;
@@ -321,7 +335,7 @@ void do_timer(long cpl)
 	else
 		current->stime++; // kernerl process time
 
-	if (next_timer) {   // a list of timer.
+	if (next_timer) {   // a list of timer. list should order by time naturally
 		next_timer->jiffies--;
 		while (next_timer && next_timer->jiffies <= 0) {
 			void (*fn)(void);
@@ -336,6 +350,7 @@ void do_timer(long cpl)
 		do_floppy_timer();
 	if ((--current->counter)>0) return;
 	current->counter=0;
+	// kernel mode can not switch the process.
 	if (!cpl) return;
 	schedule();
 }
@@ -387,6 +402,7 @@ int sys_nice(long increment)
 	return 0;
 }
 
+//Process initial.
 void sched_init(void)
 {
 	int i;
@@ -411,6 +427,7 @@ void sched_init(void)
 	outb_p(0x36,0x43);		/* binary, mode 3, LSB/MSB, ch 0 */
 	outb_p(LATCH & 0xff , 0x40);	/* LSB */
 	outb(LATCH >> 8 , 0x40);	/* MSB */
+	//game change point, where multiple process can start running.
 	set_intr_gate(0x20,&timer_interrupt);
 	outb(inb_p(0x21)&~0x01,0x21);
 	set_system_gate(0x80,&system_call);

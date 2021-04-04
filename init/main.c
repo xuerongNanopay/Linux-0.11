@@ -110,13 +110,14 @@ void main(void)		/* This really IS void, no error here. */
  * enable them
  */
 
+	//copy code to memory.
  	ROOT_DEV = ORIG_ROOT_DEV;
  	drive_info = DRIVE_INFO;
 	memory_end = (1<<20) + (EXT_MEM_K<<10);
 	memory_end &= 0xfffff000;
 	if (memory_end > 16*1024*1024)
 		memory_end = 16*1024*1024;
-	if (memory_end > 12*1024*1024) 
+	if (memory_end > 12*1024*1024)
 		buffer_memory_end = 4*1024*1024;
 	else if (memory_end > 6*1024*1024)
 		buffer_memory_end = 2*1024*1024;
@@ -126,19 +127,25 @@ void main(void)		/* This really IS void, no error here. */
 #ifdef RAMDISK
 	main_memory_start += rd_init(main_memory_start, RAMDISK*1024);
 #endif
+
+	//module initial.
 	mem_init(main_memory_start,memory_end);
 	trap_init();
 	blk_dev_init();
 	chr_dev_init();
 	tty_init();
 	time_init();
+	//initial multi process.
 	sched_init();
 	buffer_init(buffer_memory_end);
 	hd_init();
 	floppy_init();
 	sti();
+	// Above code shold run in kernel mode.
 	move_to_user_mode();
+	// create Number 0 process. father of all process.
 	if (!fork()) {		/* we count on this going ok */
+		// initial Number 0 process.
 		init();
 	}
 /*
@@ -148,6 +155,7 @@ void main(void)		/* This really IS void, no error here. */
  * can run). For task0 'pause()' just means we go check if some other
  * task can run, and if not we return here.
  */
+	//Number 0 process will never end.
 	for(;;) pause();
 }
 
@@ -173,20 +181,26 @@ void init(void)
 	int pid,i;
 
 	setup((void *) &drive_info);
-	(void) open("/dev/tty0",O_RDWR,0);
-	(void) dup(0);
-	(void) dup(0);
+	(void) open("/dev/tty0",O_RDWR,0); //open standard input.
+	(void) dup(0); // open standard output.
+	(void) dup(0); // open error output.
 	printf("%d buffers = %d bytes buffer space\n\r",NR_BUFFERS,
 		NR_BUFFERS*BLOCK_SIZE);
 	printf("Free mem: %d bytes\n\r",memory_end-main_memory_start);
+
+	//create number 1 process from number 0 process.
 	if (!(pid=fork())) {
 		close(0);
+		// /etc/rc is configure file.
 		if (open("/etc/rc",O_RDONLY,0))
 			_exit(1);
 		execve("/bin/sh",argv_rc,envp_rc);
 		_exit(2);
 	}
+
+	// parent process.
 	if (pid>0)
+		// waiting for parent process exist.
 		while (pid != wait(&i))
 			/* nothing */;
 	while (1) {
@@ -194,6 +208,7 @@ void init(void)
 			printf("Fork failed in init\r\n");
 			continue;
 		}
+		// Number2 process?
 		if (!pid) {
 			close(0);close(1);close(2);
 			setsid();
