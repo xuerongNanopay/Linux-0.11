@@ -2,4 +2,8 @@ Thumbs.db
 *.log
 *.bak
 .DS_Store
+*.a
+*.o
+*.so
+/System.map
 
