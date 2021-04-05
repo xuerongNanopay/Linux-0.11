@@ -103,6 +103,7 @@ static long main_memory_start = 0;
 
 struct drive_info { char dummy[32]; } drive_info;
 
+//Entry of kernel.
 void main(void)		/* This really IS void, no error here. */
 {			/* The startup routine assumes (well, ...) this */
 /*
@@ -113,10 +114,14 @@ void main(void)		/* This really IS void, no error here. */
 	//copy code to memory.
  	ROOT_DEV = ORIG_ROOT_DEV;
  	drive_info = DRIVE_INFO;
+	//read setup.s and get system memory args.
+	//get system memory size.
 	memory_end = (1<<20) + (EXT_MEM_K<<10);
 	memory_end &= 0xfffff000;
+	//desize buffer memory size.
 	if (memory_end > 16*1024*1024)
 		memory_end = 16*1024*1024;
+	//high-speed cache.(sync)
 	if (memory_end > 12*1024*1024)
 		buffer_memory_end = 4*1024*1024;
 	else if (memory_end > 6*1024*1024)
@@ -141,7 +146,7 @@ void main(void)		/* This really IS void, no error here. */
 	hd_init();
 	floppy_init();
 	sti();
-	// Above code shold run in kernel mode.
+	// Above code should run in kernel mode.
 	move_to_user_mode();
 	// create Number 0 process. father of all process.
 	if (!fork()) {		/* we count on this going ok */
@@ -176,11 +181,14 @@ static char * envp_rc[] = { "HOME=/", NULL };
 static char * argv[] = { "-/bin/sh",NULL };
 static char * envp[] = { "HOME=/usr/root", NULL };
 
+//only task0 can run.
 void init(void)
 {
 	int pid,i;
 
+	//get hardware infos.
 	setup((void *) &drive_info);
+
 	(void) open("/dev/tty0",O_RDWR,0); //open standard input.
 	(void) dup(0); // open standard output.
 	(void) dup(0); // open error output.
@@ -189,26 +197,29 @@ void init(void)
 	printf("Free mem: %d bytes\n\r",memory_end-main_memory_start);
 
 	//create number 1 process from number 0 process.
-	if (!(pid=fork())) {
+	if (!(pid=fork())) { //run in task1 process.
 		close(0);
 		// /etc/rc is configure file.
 		if (open("/etc/rc",O_RDONLY,0))
 			_exit(1);
+		//task1 process will hold at here
 		execve("/bin/sh",argv_rc,envp_rc);
 		_exit(2);
 	}
 
 	// parent process.
 	if (pid>0)
-		// waiting for parent process exist.
+		// waiting for task1 exist.
 		while (pid != wait(&i))
 			/* nothing */;
+	//task0 will be trapped below code.
+	//This is how OS ever end.
 	while (1) {
 		if ((pid=fork())<0) {
 			printf("Fork failed in init\r\n");
 			continue;
 		}
-		// Number2 process?
+		//continuing recreate task1 and bash when no task1.
 		if (!pid) {
 			close(0);close(1);close(2);
 			setsid();

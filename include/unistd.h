@@ -136,7 +136,7 @@
   type name(void) \
 { \
 long __res; \
-__asm__ volatile ("int $0x80" \
+__asm__ volatile ("int $0x80" \ //set hander function addr to eax.
 	: "=a" (__res) \
 	: "0" (__NR_##name)); \
 if (__res >= 0) \

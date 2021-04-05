@@ -1,3 +1,6 @@
+# before this code. BIOS will bring this file from a fixed location to the memory.
+# x86 -- 0xFFFF0 -> memory 0x90000(this version of linux)
+# also do hardware initialization.
 	.code16
 # rewrite with AT&T syntax by falcon <wuzhangjin@gmail.com> at 081012
 #
@@ -13,7 +16,7 @@
 # iself out of the way to address 0x90000, and jumps there.
 #
 # It then loads 'setup' directly after itself (0x90200), and the system
-# at 0x10000, using BIOS interrupts. 
+# at 0x10000, using BIOS interrupts.
 #
 # NOTE! currently system is at most 8*65536 bytes long. This should be no
 # problem, even in the future. I want to keep it simple. This 512 kB
@@ -36,8 +39,8 @@
 	.equ SETUPLEN, 4		# nr of setup-sectors
 	.equ BOOTSEG, 0x07c0		# original address of boot-sector
 	.equ INITSEG, 0x9000		# we move boot here - out of the way
-	.equ SETUPSEG, 0x9020		# setup starts here
-	.equ SYSSEG, 0x1000		# system loaded at 0x10000 (65536).
+	.equ SETUPSEG, 0x9020		# setup starts here # setup.s location.
+	.equ SYSSEG, 0x1000		# system loaded at 0x10000 (65536). // Entire OS.
 	.equ ENDSEG, SYSSEG + SYSSIZE	# where to stop loading
 
 # ROOT_DEV:	0x000 - same type of floppy as boot.
@@ -105,7 +108,7 @@ ok_load_setup:
 	mov	$0x03, %ah		# read cursor pos
 	xor	%bh, %bh
 	int	$0x10
-	
+
 	mov	$30, %cx
 	mov	$0x0007, %bx		# page 0, attribute 7 (normal)
 	#lea	msg1, %bp
@@ -192,7 +195,7 @@ ok2_read:
 	mov 	$1, %ax
 	sub 	head, %ax
 	jne 	ok4_read
-	incw    track 
+	incw    track
 ok4_read:
 	mov	%ax, head
 	xor	%ax, %ax
@@ -263,7 +266,7 @@ root_dev:
 	.word ROOT_DEV
 boot_flag:
 	.word 0xAA55
-	
+
 	.text
 	endtext:
 	.data
