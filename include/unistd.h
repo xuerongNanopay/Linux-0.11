@@ -132,11 +132,12 @@
 #define __NR_iam		72
 #define __NR_whoami		73
 
+//set hander function addr to eax.
 #define _syscall0(type,name) \
   type name(void) \
 { \
 long __res; \
-__asm__ volatile ("int $0x80" \ //set hander function addr to eax.
+__asm__ volatile ("int $0x80" \
 	: "=a" (__res) \
 	: "0" (__NR_##name)); \
 if (__res >= 0) \

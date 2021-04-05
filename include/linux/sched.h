@@ -178,12 +178,15 @@ __asm__("str %%ax\n\t" \
  * This also clears the TS-flag if the task we switched to has used
  * tha math co-processor latest.
  */
+// check if next process is equal to current one.
+// if yes, then we don't need switch
+ // update current at here
 #define switch_to(n) {\
 struct {long a,b;} __tmp; \
-__asm__("cmpl %%ecx,current\n\t" \ // check if next process is equal to current one.
-	"je 1f\n\t" \              // if yes, then we don't need switch
+__asm__("cmpl %%ecx,current\n\t" \
+	"je 1f\n\t" \
 	"movw %%dx,%1\n\t" \
-	"xchgl %%ecx,current\n\t" \ // update current at here
+	"xchgl %%ecx,current\n\t" \
 	"ljmp *%0\n\t" \
 	"cmpl %%ecx,last_task_used_math\n\t" \
 	"jne 1f\n\t" \
