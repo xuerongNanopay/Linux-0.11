@@ -44,6 +44,9 @@ __asm__ __volatile__ ("cld\n" \
 	:"=c" (__res):"c" (0),"S" (addr)); \
 __res;})
 
+//free logical block?
+//we only unmask free block bit
+//we do actually clean when we reuse it.
 void free_block(int dev, int block)
 {
 	struct super_block * sb;
@@ -60,6 +63,7 @@ void free_block(int dev, int block)
 				dev,block,bh->b_count);
 			return;
 		}
+		//do not clean when free. clean when new.
 		bh->b_dirt=0;
 		bh->b_uptodate=0;
 		brelse(bh);
@@ -69,6 +73,7 @@ void free_block(int dev, int block)
 		printk("block (%04x:%d) ",dev,block+sb->s_firstdatazone-1);
 		panic("free_block: bit already cleared");
 	}
+	//update logical mask
 	sb->s_zmap[block/8192]->b_dirt = 1;
 }
 
@@ -97,6 +102,7 @@ int new_block(int dev)
 		panic("new_block: cannot get block");
 	if (bh->b_count != 1)
 		panic("new block: count is != 1");
+	//clear here.
 	clear_block(bh->b_data);
 	bh->b_uptodate = 1;
 	bh->b_dirt = 1;
@@ -133,6 +139,7 @@ void free_inode(struct m_inode * inode)
 	memset(inode,0,sizeof(*inode));
 }
 
+//we don't write inode at here. check inode.c
 struct m_inode * new_inode(int dev)
 {
 	struct m_inode * inode;

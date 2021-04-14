@@ -66,7 +66,7 @@ __asm__("incl %0\n\tandl $4095,%0"::"m" (head))
 typedef char buffer_block[BLOCK_SIZE];
 
 struct buffer_head {
-	char * b_data;			/* pointer to data block (1024 bytes) */
+	char * b_data;			/* pointer to data block (1024 bytes | 1KB) */
 	unsigned long b_blocknr;	/* block number */
 	unsigned short b_dev;		/* device (0 = free) */
 	unsigned char b_uptodate;
@@ -91,19 +91,19 @@ struct d_inode {
 };
 
 struct m_inode {
-	unsigned short i_mode;
+	unsigned short i_mode; //node attribute and type.
 	unsigned short i_uid;
-	unsigned long i_size;
+	unsigned long i_size; //size of data under this inode.
 	unsigned long i_mtime;
 	unsigned char i_gid;
-	unsigned char i_nlinks;
-	unsigned short i_zone[9];
+	unsigned char i_nlinks; // ==0: deleted inode.
+	unsigned short i_zone[9]; //store data location in the disk.
 /* these are in memory also */
 	struct task_struct * i_wait;
 	unsigned long i_atime;
 	unsigned long i_ctime;
-	unsigned short i_dev;
-	unsigned short i_num;
+	unsigned short i_dev; //which device the inode belong to.
+	unsigned short i_num; //inode offset in the entire device.
 	unsigned short i_count;
 	unsigned char i_lock;
 	unsigned char i_dirt;
@@ -121,21 +121,25 @@ struct file {
 	off_t f_pos;
 };
 
+//struct describe inode and logical block. z == logical
+//the size of each block depends on filesystem.
+//estimate total "data" size: 1024*8*1K*8 = 64M => sizeof(s_zmap) * sizeof(block) * (number bits in byte) * sizeof(block)
 struct super_block {
-	unsigned short s_ninodes;
-	unsigned short s_nzones;
+	unsigned short s_ninodes; //total number of inodes
+	unsigned short s_nzones;  //total number of zone block.
 	unsigned short s_imap_blocks;
-	unsigned short s_zmap_blocks;
+	unsigned short s_zmap_blocks; //count from boot block.
 	unsigned short s_firstdatazone;
 	unsigned short s_log_zone_size;
-	unsigned long s_max_size;
-	unsigned short s_magic;
+	unsigned long s_max_size; //maximum file size which support by this OS.
+	unsigned short s_magic; //use to detect if kernel support this file system.
+
 /* These are only in memory */
-	struct buffer_head * s_imap[8];
+	struct buffer_head * s_imap[8]; //can use this property to estimate maximum support size for a device.
 	struct buffer_head * s_zmap[8];
-	unsigned short s_dev;
-	struct m_inode * s_isup;
-	struct m_inode * s_imount;
+	unsigned short s_dev;    //device number
+	struct m_inode * s_isup; //inode for root directory.
+	struct m_inode * s_imount;//the device mounting inode.
 	unsigned long s_time;
 	struct task_struct * s_wait;
 	unsigned char s_lock;
@@ -154,8 +158,9 @@ struct d_super_block {
 	unsigned short s_magic;
 };
 
+//data structure for directory entry.
 struct dir_entry {
-	unsigned short inode;
+	unsigned short inode; //inode number.
 	char name[NAME_LEN];
 };
 

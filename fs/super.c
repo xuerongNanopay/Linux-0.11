@@ -23,7 +23,7 @@ void wait_for_keypress(void);
 register int __res ; \
 __asm__("bt %2,%3;setb %%al":"=a" (__res):"a" (0),"r" (bitnr),"m" (*(addr))); \
 __res; })
-
+//NR_SUPER == 8
 struct super_block super_block[NR_SUPER];
 /* this is initialized in init/main.c */
 int ROOT_DEV = 0;
@@ -65,18 +65,20 @@ struct super_block * get_super(int dev)
 			wait_on_super(s);
 			if (s->s_dev == dev)
 				return s;
+			//reset to begin of array
 			s = 0+super_block;
 		} else
 			s++;
 	return NULL;
 }
 
+//release super.
 void put_super(int dev)
 {
 	struct super_block * sb;
 	/* struct m_inode * inode;*/
 	int i;
-
+	//you can not release root.
 	if (dev == ROOT_DEV) {
 		printk("root diskette changed: prepare for armageddon\n\r");
 		return;
@@ -97,6 +99,7 @@ void put_super(int dev)
 	return;
 }
 
+//load dev's block#1 into super_block array.
 static struct super_block * read_super(int dev)
 {
 	struct super_block * s;
@@ -108,6 +111,7 @@ static struct super_block * read_super(int dev)
 	check_disk_change(dev);
 	if ((s = get_super(dev)))
 		return s;
+	//find empty slot in array to put super block.
 	for (s = 0+super_block ;; s++) {
 		if (s >= NR_SUPER+super_block)
 			return NULL;
@@ -126,6 +130,7 @@ static struct super_block * read_super(int dev)
 		free_super(s);
 		return NULL;
 	}
+	//Does it work?
 	*((struct d_super_block *) s) =
 		*((struct d_super_block *) bh->b_data);
 	brelse(bh);
@@ -149,6 +154,8 @@ static struct super_block * read_super(int dev)
 			block++;
 		else
 			break;
+	//need to read all inode and zone bitmap into kernel.
+	//otherwise, fail this read.
 	if (block != 2+s->s_imap_blocks+s->s_zmap_blocks) {
 		for(i=0;i<I_MAP_SLOTS;i++)
 			brelse(s->s_imap[i]);
@@ -158,21 +165,25 @@ static struct super_block * read_super(int dev)
 		free_super(s);
 		return NULL;
 	}
+	//we don't use this bit.
 	s->s_imap[0]->b_data[0] |= 1;
 	s->s_zmap[0]->b_data[0] |= 1;
 	free_super(s);
 	return s;
 }
 
+//dev_name is file path in linux.
 int sys_umount(char * dev_name)
 {
 	struct m_inode * inode;
 	struct super_block * sb;
 	int dev;
 
+	//each dev should have corresponding inode.
 	if (!(inode=namei(dev_name)))
 		return -ENOENT;
 	dev = inode->i_zone[0];
+	//only block inode can unmount.
 	if (!S_ISBLK(inode->i_mode)) {
 		iput(inode);
 		return -ENOTBLK;
@@ -184,6 +195,7 @@ int sys_umount(char * dev_name)
 		return -ENOENT;
 	if (!sb->s_imount->i_mount)
 		printk("Mounted inode has i_mount=0\n");
+	//also need to remove children inodes.
 	for (inode=inode_table+0 ; inode<inode_table+NR_INODE ; inode++)
 		if (inode->i_dev==dev && inode->i_count)
 				return -EBUSY;
@@ -192,6 +204,7 @@ int sys_umount(char * dev_name)
 	sb->s_imount = NULL;
 	iput(sb->s_isup);
 	sb->s_isup = NULL;
+	//release device and sync
 	put_super(dev);
 	sync_dev(dev);
 	return 0;
@@ -233,12 +246,14 @@ int sys_mount(char * dev_name, char * dir_name, int rw_flag)
 		iput(dir_i);
 		return -EPERM;
 	}
+	//do mount.
 	sb->s_imount=dir_i;
 	dir_i->i_mount=1;
 	dir_i->i_dirt=1;		/* NOTE! we don't iput(dir_i) */
 	return 0;			/* we do that in umount */
 }
 
+//important. root inode == "/"
 void mount_root(void)
 {
 	int i,free;
@@ -247,12 +262,15 @@ void mount_root(void)
 
 	if (32 != sizeof (struct d_inode))
 		panic("bad i-node size");
+	//initial file_table array.
 	for(i=0;i<NR_FILE;i++)
 		file_table[i].f_count=0;
+	//old tech. no one use it anymore.
 	if (MAJOR(ROOT_DEV) == 2) {
 		printk("Insert root floppy and press ENTER");
 		wait_for_keypress();
 	}
+	//initial super_block array.
 	for(p = &super_block[0] ; p < &super_block[NR_SUPER] ; p++) {
 		p->s_dev = 0;
 		p->s_lock = 0;
@@ -260,14 +278,19 @@ void mount_root(void)
 	}
 	if (!(p=read_super(ROOT_DEV)))
 		panic("Unable to mount root");
+	//ROOT_DEV==0x901FC, first inode in the fs.
+	//mi is inode for the "/"
 	if (!(mi=iget(ROOT_DEV,ROOT_INO)))
 		panic("Unable to read root i-node");
+
+	//create relationship between inode and super_block.
 	mi->i_count += 3 ;	/* NOTE! it is logically used 4 times, not 1 */
 	p->s_isup = p->s_imount = mi;
 	current->pwd = mi;
 	current->root = mi;
 	free=0;
 	i=p->s_nzones;
+	//free space caculation.
 	while (-- i >= 0)
 		if (!set_bit(i&8191,p->s_zmap[i>>13]->b_data))
 			free++;

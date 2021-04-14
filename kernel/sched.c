@@ -162,6 +162,7 @@ int sys_pause(void)
 //put current into queue. p is the head of waiting queue.
 //which mean the head will get wake up first.
 //is it good?
+//**p is the head of sleep list.
 void sleep_on(struct task_struct **p)
 {
 	struct task_struct *tmp;
@@ -174,7 +175,9 @@ void sleep_on(struct task_struct **p)
 	tmp = *p;
 	*p = current;
 	current->state = TASK_UNINTERRUPTIBLE;
-	schedule();
+
+	schedule(); //current porcess stuck here.
+
 	if (tmp)
 		tmp->state=0;
 }

@@ -4,7 +4,7 @@
  *  (C) 1991  Linus Torvalds
  */
 
-#include <string.h> 
+#include <string.h>
 #include <sys/stat.h>
 
 #include <linux/sched.h>
@@ -39,7 +39,7 @@ static inline void unlock_inode(struct m_inode * inode)
 	inode->i_lock=0;
 	wake_up(&inode->i_wait);
 }
-
+//make all inodes from dev invalide.
 void invalidate_inodes(int dev)
 {
 	int i;
@@ -69,6 +69,7 @@ void sync_inodes(void)
 	}
 }
 
+//important
 static int _bmap(struct m_inode * inode,int block,int create)
 {
 	struct buffer_head * bh;
@@ -146,7 +147,9 @@ int create_block(struct m_inode * inode, int block)
 {
 	return _bmap(inode,block,1);
 }
-		
+
+//release reference from inode.
+//do inode sync when count reach to 0
 void iput(struct m_inode * inode)
 {
 	if (!inode)
@@ -154,6 +157,7 @@ void iput(struct m_inode * inode)
 	wait_on_inode(inode);
 	if (!inode->i_count)
 		panic("iput: trying to free free inode");
+	//no one refer to a pipe, the pipe should save to remove from memory.
 	if (inode->i_pipe) {
 		wake_up(&inode->i_wait);
 		if (--inode->i_count)
@@ -199,6 +203,7 @@ struct m_inode * get_empty_inode(void)
 
 	do {
 		inode = NULL;
+		//find empty inode.
 		for (i = NR_INODE; i ; i--) {
 			if (++last_inode >= inode_table + NR_INODE)
 				last_inode = inode_table;
@@ -225,12 +230,14 @@ struct m_inode * get_empty_inode(void)
 	return inode;
 }
 
+//get inode as a pipe
 struct m_inode * get_pipe_inode(void)
 {
 	struct m_inode * inode;
 
 	if (!(inode = get_empty_inode()))
 		return NULL;
+	//pipe is memory only.
 	if (!(inode->i_size=get_free_page())) {
 		inode->i_count = 0;
 		return NULL;
@@ -241,6 +248,9 @@ struct m_inode * get_pipe_inode(void)
 	return inode;
 }
 
+//offset of inode in dev.
+//create inode struct for number nr inode in dev.
+//all inodes are managed inside array.
 struct m_inode * iget(int dev,int nr)
 {
 	struct m_inode * inode, * empty;
@@ -260,6 +270,8 @@ struct m_inode * iget(int dev,int nr)
 			continue;
 		}
 		inode->i_count++;
+		//why?
+		//inode->i_mount == 1 ?=> existing super_block point to this inode.
 		if (inode->i_mount) {
 			int i;
 
@@ -267,21 +279,29 @@ struct m_inode * iget(int dev,int nr)
 				if (super_block[i].s_imount==inode)
 					break;
 			if (i >= NR_SUPER) {
+				// which situation will this happen?
 				printk("Mounted inode hasn't got sb\n");
 				if (empty)
 					iput(empty);
 				return inode;
 			}
 			iput(inode);
+			//Why need do this. only allow get unmounted inode?
+			//if a inode relating to a super block, find super block's inode.
+			//Interesting. this is how to make correctness of mount.
+			//use device inode, check super.c sys_mount get better understanding.
+			//It will also get device inode if the inode is mount.
 			dev = super_block[i].s_dev;
 			nr = ROOT_INO;
 			inode = inode_table;
 			continue;
 		}
+		//we have inode in the array already. so just relaase empty.
 		if (empty)
 			iput(empty);
 		return inode;
 	}
+	//if target inode isn't in array already. do read.
 	if (!empty)
 		return (NULL);
 	inode=empty;
@@ -291,6 +311,7 @@ struct m_inode * iget(int dev,int nr)
 	return inode;
 }
 
+//read inode from cache memory.
 static void read_inode(struct m_inode * inode)
 {
 	struct super_block * sb;
@@ -324,6 +345,7 @@ static void write_inode(struct m_inode * inode)
 	}
 	if (!(sb=get_super(inode->i_dev)))
 		panic("trying to write inode without device");
+	//2: very first two block.
 	block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks +
 		(inode->i_num-1)/INODES_PER_BLOCK;
 	if (!(bh=bread(inode->i_dev,block)))

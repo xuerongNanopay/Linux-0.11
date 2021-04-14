@@ -12,7 +12,7 @@
 #include <linux/kernel.h>
 #include <asm/segment.h>
 
-#include <string.h> 
+#include <string.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <const.h>
@@ -48,6 +48,7 @@ static int permission(struct m_inode * inode,int mask)
 		mode >>= 6;
 	else if (current->egid==inode->i_gid)
 		mode >>= 3;
+
 	if (((mode & mask & 0007) == mask) || suser())
 		return 1;
 	return 0;
@@ -60,6 +61,7 @@ static int permission(struct m_inode * inode,int mask)
  *
  * NOTE! unlike strncmp, match returns 1 for success, 0 for failure.
  */
+//check direction entry if it has input name.
 static int match(int len,const char * name,struct dir_entry * de)
 {
 	register int same ;
@@ -88,6 +90,7 @@ static int match(int len,const char * name,struct dir_entry * de)
  * This also takes care of the few special cases due to '..'-traversal
  * over a pseudo-root and a mount point.
  */
+//dir should be a direction inode. this only find in current directory.
 static struct buffer_head * find_entry(struct m_inode ** dir,
 	const char * name, int namelen, struct dir_entry ** res_dir)
 {
@@ -104,6 +107,7 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
 	if (namelen > NAME_LEN)
 		namelen = NAME_LEN;
 #endif
+	//total number of entries under dir inode.
 	entries = (*dir)->i_size / (sizeof (struct dir_entry));
 	*res_dir = NULL;
 	if (!namelen)
@@ -111,12 +115,16 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
 /* check for '..', as we might have to do some "magic" for it */
 	if (namelen==2 && get_fs_byte(name)=='.' && get_fs_byte(name+1)=='.') {
 /* '..' in a pseudo-root results in a faked '.' (just change namelen) */
+		//If you in "/", you can not do ..
 		if ((*dir) == current->root)
 			namelen=1;
+		//if inode represents mounted point.
 		else if ((*dir)->i_num == ROOT_INO) {
 /* '..' over a mount-point results in 'dir' being exchanged for the mounted
    directory-inode. NOTE! We set mounted, so that we can iput the new dir */
 			sb=get_super((*dir)->i_dev);
+			//use mount-point inode.
+			//if you understand this, you will know mount better.
 			if (sb->s_imount) {
 				iput(*dir);
 				(*dir)=sb->s_imount;
@@ -130,6 +138,7 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
 		return NULL;
 	i = 0;
 	de = (struct dir_entry *) bh->b_data;
+	//iterate directory entries one by one.
 	while (i < entries) {
 		if ((char *)de >= BLOCK_SIZE+bh->b_data) {
 			brelse(bh);
@@ -225,6 +234,7 @@ static struct buffer_head * add_entry(struct m_inode * dir,
  * Getdir traverses the pathname until it hits the topmost directory.
  * It returns NULL on failure.
  */
+//How kernel organize resource as tree.
 static struct m_inode * get_dir(const char * pathname)
 {
 	char c;
@@ -256,6 +266,7 @@ static struct m_inode * get_dir(const char * pathname)
 			/* nothing */ ;
 		if (!c)
 			return inode;
+		//key.
 		if (!(bh = find_entry(&inode,thisname,namelen,&de))) {
 			iput(inode);
 			return NULL;
@@ -416,7 +427,7 @@ int sys_mknod(const char * filename, int mode, int dev)
 	struct m_inode * dir, * inode;
 	struct buffer_head * bh;
 	struct dir_entry * de;
-	
+
 	if (!suser())
 		return -EPERM;
 	if (!(dir = dir_namei(filename,&namelen,&basename)))
@@ -554,7 +565,7 @@ static int empty_dir(struct m_inode * inode)
 		return 0;
 	}
 	de = (struct dir_entry *) bh->b_data;
-	if (de[0].inode != inode->i_num || !de[1].inode || 
+	if (de[0].inode != inode->i_num || !de[1].inode ||
 	    strcmp(".",de[0].name) || strcmp("..",de[1].name)) {
 	    	printk("warning - bad directory on dev %04x\n",inode->i_dev);
 		return 0;

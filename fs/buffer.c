@@ -19,7 +19,7 @@
  */
 
 #include <stdarg.h>
- 
+
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -39,6 +39,7 @@ int NR_BUFFERS = 0;
 static inline void wait_on_buffer(struct buffer_head * bh)
 {
 	cli();
+	//no interrupt at this point.
 	while (bh->b_lock)
 		sleep_on(&bh->b_wait);
 	sti();
@@ -53,6 +54,7 @@ int sys_sync(void)
 	bh = start_buffer;
 	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
 		wait_on_buffer(bh);
+		                    //<-- what about someone lock at this point(interrupt)? Is it safe.
 		if (bh->b_dirt)
 			ll_rw_block(WRITE,bh);
 	}
@@ -167,7 +169,7 @@ static inline void insert_into_queues(struct buffer_head * bh)
 }
 
 static struct buffer_head * find_buffer(int dev, int block)
-{		
+{
 	struct buffer_head * tmp;
 
 	for (tmp = hash(dev,block) ; tmp != NULL ; tmp = tmp->b_next)
@@ -253,6 +255,7 @@ repeat:
 	return bh;
 }
 
+//release buffer_wait
 void brelse(struct buffer_head * buf)
 {
 	if (!buf)
@@ -275,7 +278,7 @@ struct buffer_head * bread(int dev,int block)
 		panic("bread: getblk returned NULL\n");
 	if (bh->b_uptodate)
 		return bh;
-	ll_rw_block(READ,bh);
+	ll_rw_block(READ,bh); // this function may sleep.
 	wait_on_buffer(bh);
 	if (bh->b_uptodate)
 		return bh;
@@ -283,6 +286,7 @@ struct buffer_head * bread(int dev,int block)
 	return NULL;
 }
 
+//copy 1024KB. hight spead.
 #define COPYBLK(from,to) \
 __asm__("cld\n\t" \
 	"rep\n\t" \
@@ -296,6 +300,7 @@ __asm__("cld\n\t" \
  * all at the same time, not waiting for one to be read, and then another
  * etc.
  */
+//good function. copy from kernel to user.
 void bread_page(unsigned long address,int dev,int b[4])
 {
 	struct buffer_head * bh[4];
@@ -381,4 +386,4 @@ void buffer_init(long buffer_end)
 	h->b_next_free = free_list;
 	for (i=0;i<NR_HASH;i++)
 		hash_table[i]=NULL;
-}	
+}
