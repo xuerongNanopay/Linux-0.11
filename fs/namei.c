@@ -91,6 +91,7 @@ static int match(int len,const char * name,struct dir_entry * de)
  * over a pseudo-root and a mount point.
  */
 //dir should be a direction inode. this only find in current directory.
+//like: ls
 static struct buffer_head * find_entry(struct m_inode ** dir,
 	const char * name, int namelen, struct dir_entry ** res_dir)
 {
@@ -127,6 +128,7 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
 			//if you understand this, you will know mount better.
 			if (sb->s_imount) {
 				iput(*dir);
+				//only sb->s_imount has info to point to parent directory.
 				(*dir)=sb->s_imount;
 				(*dir)->i_count++;
 			}
@@ -171,6 +173,7 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
  * may not sleep between calling this and putting something into
  * the entry, as someone else might have used it while you slept.
  */
+//like: mkdir, touch. create new inode under dir folder.
 static struct buffer_head * add_entry(struct m_inode * dir,
 	const char * name, int namelen, struct dir_entry ** res_dir)
 {
@@ -207,6 +210,7 @@ static struct buffer_head * add_entry(struct m_inode * dir,
 			}
 			de = (struct dir_entry *) bh->b_data;
 		}
+		//create new dir_entry if do not have any free place.
 		if (i*sizeof(struct dir_entry) >= dir->i_size) {
 			de->inode=0;
 			dir->i_size = (i+1)*sizeof(struct dir_entry);
@@ -235,6 +239,7 @@ static struct buffer_head * add_entry(struct m_inode * dir,
  * It returns NULL on failure.
  */
 //How kernel organize resource as tree.
+// /aa/bb/ => inode of /aa/bb ; /aa/bb => inode of /aa
 static struct m_inode * get_dir(const char * pathname)
 {
 	char c;
@@ -248,6 +253,7 @@ static struct m_inode * get_dir(const char * pathname)
 		panic("No root inode");
 	if (!current->pwd || !current->pwd->i_count)
 		panic("No cwd inode");
+	//case of /aaa/aaa ; aaa/aaa
 	if ((c=get_fs_byte(pathname))=='/') {
 		inode = current->root;
 		pathname++;
@@ -255,9 +261,11 @@ static struct m_inode * get_dir(const char * pathname)
 		inode = current->pwd;
 	else
 		return NULL;	/* empty name is bad */
+
 	inode->i_count++;
 	while (1) {
 		thisname = pathname;
+		//If it is not a folder or can not exec. folder should be able to exec.
 		if (!S_ISDIR(inode->i_mode) || !permission(inode,MAY_EXEC)) {
 			iput(inode);
 			return NULL;

@@ -159,6 +159,7 @@ struct d_super_block {
 };
 
 //data structure for directory entry.
+//datastructure for folder in zone.
 struct dir_entry {
 	unsigned short inode; //inode number.
 	char name[NAME_LEN];
